@@ -23,10 +23,10 @@ typedef struct {
 
 static int parse_license_file(geoipupdate_s * up);
 static int update_country_database(geoipupdate_s * gu);
-static void get_to_disc(geoipupdate_s * gu, const char *url, const char *fname);
+static void get_to_disc(CURL * curl, geoipupdate_s * gu, const char *url, const char *fname);
 static int update_database_general_all(geoipupdate_s * gu);
 static int update_database_general(geoipupdate_s * gu, const char *product_id);
-static in_mem_s *get(geoipupdate_s * gu, const char *url);
+static in_mem_s *get(CURL * curl, geoipupdate_s * gu, const char *url);
 static int gunzip_and_replace(geoipupdate_s * gu, const char *gzipfile,
                               const char *geoip_filename);
 
@@ -323,12 +323,11 @@ static void common_req(CURL * curl, geoipupdate_s * gu)
     }
 }
 
-void get_to_disc(geoipupdate_s * gu, const char *url, const char *fname)
+void get_to_disc(CURL * curl, geoipupdate_s * gu, const char *url, const char *fname)
 {
     FILE *f = fopen(fname, "wb");
     exit_unless(f != NULL, "Can't open %s\n", fname);
     say_if(gu->verbose, "url: %s\n", url);
-    CURL *curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)f);
     curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -339,7 +338,6 @@ void get_to_disc(geoipupdate_s * gu, const char *url, const char *fname)
                 "curl_easy_perform() failed: %s\nConnect to %s\n",
                 curl_easy_strerror(res), url);
 
-    curl_easy_cleanup(curl);
     fclose(f);
 }
 
@@ -377,12 +375,11 @@ static void in_mem_s_delete(in_mem_s * mem)
     }
 }
 
-static in_mem_s *get(geoipupdate_s * gu, const char *url)
+static in_mem_s *get(CURL * curl, geoipupdate_s * gu, const char *url)
 {
     in_mem_s *mem = in_mem_s_new();
 
     say_if(gu->verbose, "url: %s\n", url);
-    CURL *curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, mem_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)mem);
@@ -391,7 +388,6 @@ static in_mem_s *get(geoipupdate_s * gu, const char *url)
     exit_unless(res == CURLE_OK,
                 "curl_easy_perform() failed: %s\nConnect to %s\n",
                 curl_easy_strerror(res), url);
-    curl_easy_cleanup(curl);
     return mem;
 }
 
@@ -415,10 +411,11 @@ static int update_database_general(geoipupdate_s * gu, const char *product_id)
 {
     char *url, *geoip_filename, *geoip_gz_filename, *client_ipaddr;
     char hex_digest[33], hex_digest2[33];
+    CURL *curl = curl_easy_init();
 
     xasprintf(&url, "%s://%s/app/update_getfilename?product_id=%s",
               gu->proto, gu->host, product_id);
-    in_mem_s *mem = get(gu, url);
+    in_mem_s *mem = get(curl, gu, url);
     free(url);
     if (mem->size == 0) {
         fprintf(stderr, "product_id %s not found\n", product_id);
@@ -430,7 +427,7 @@ static int update_database_general(geoipupdate_s * gu, const char *product_id)
     md5hex(geoip_filename, hex_digest);
     say_if(gu->verbose, "md5hex_digest: %s\n", hex_digest);
     xasprintf(&url, "%s://%s/app/update_getipaddr", gu->proto, gu->host);
-    mem = get(gu, url);
+    mem = get(curl, gu, url);
     free(url);
     client_ipaddr = strdup(mem->ptr);
     in_mem_s_delete(mem);
@@ -446,11 +443,12 @@ static int update_database_general(geoipupdate_s * gu, const char *product_id)
         gu->proto, gu->host, hex_digest, hex_digest2,
         gu->license.user_id, product_id);
     xasprintf(&geoip_gz_filename, "%s.gz", geoip_filename);
-    get_to_disc(gu, url, geoip_gz_filename);
+    get_to_disc(curl, gu, url, geoip_gz_filename);
     free(url);
     int rc = gunzip_and_replace(gu, geoip_gz_filename, geoip_filename);
     free(geoip_gz_filename);
     free(geoip_filename);
+    curl_easy_cleanup(curl);
     return rc;
 }
 
@@ -468,6 +466,7 @@ static int update_country_database(geoipupdate_s * gu)
 {
     char *geoip_filename, *geoip_gz_filename, *url;
     char hex_digest[33];
+    CURL *curl = curl_easy_init();
     xasprintf(&geoip_filename, "%s/GeoIP.dat", gu->database_dir);
     xasprintf(&geoip_gz_filename, "%s/GeoIP.dat.gz", gu->database_dir);
 
@@ -476,12 +475,13 @@ static int update_country_database(geoipupdate_s * gu)
     xasprintf(&url,
               "%s://%s/app/update?license_key=%s&md5=%s",
               gu->proto, gu->host, &gu->license.license_key[0], hex_digest);
-    get_to_disc(gu, url, geoip_gz_filename);
+    get_to_disc(curl, gu, url, geoip_gz_filename);
     free(url);
 
     int rc = gunzip_and_replace(gu, geoip_gz_filename, geoip_filename);
     free(geoip_gz_filename);
     free(geoip_filename);
+    curl_easy_cleanup(curl);
     return rc ? ERROR : OK;
 }
 
