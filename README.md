@@ -26,16 +26,29 @@ Then install `geoipupdate` by running:
 ## Installing From Source File
 
 To install this from the source package, you will need a C compiler, Make,
-and the curl library and headers. On Debian or Ubuntu, you can install these
+and the curl library and headers.
+
+On Debian or Ubuntu, you can install these
 dependencies by running:
 
     $ sudo apt-get install build-essential libcurl4-openssl-dev
+
+On Centos 7 or RHEL 7, you can install these
+dependencies by running:
+
+    $ sudo yum groupinstall 'Development Tools'
+    $ sudo yum install libcurl-devel
 
 Once you have the necessary dependencies, run the following commands:
 
     $ ./configure
     $ make
     $ sudo make install
+
+On CentOS 7 or RHEL 7 to make a compatible build with the GeoIP-1.5.x
+library and config files you need to configure with:
+
+    $ ./configure --prefix=/usr --sysconfdir=/etc
 
 The `configure` script takes the standard options to set where files are
 installed such as `--prefix`, etc. See `./configure --help` for details.
