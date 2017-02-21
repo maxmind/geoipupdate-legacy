@@ -45,11 +45,6 @@ Once you have the necessary dependencies, run the following commands:
     $ make
     $ sudo make install
 
-On CentOS 7 or RHEL 7 to make a compatible build with the GeoIP-1.5.x
-library and config files you need to configure with:
-
-    $ ./configure --prefix=/usr --sysconfdir=/etc
-
 The `configure` script takes the standard options to set where files are
 installed such as `--prefix`, etc. See `./configure --help` for details.
 
