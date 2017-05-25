@@ -17,6 +17,8 @@ Unreleased
   valid gzip file".
 * ${datarootdir}/GeoIP is now created on `make install`. Reported by Antonios
   Karagiannis. GitHub #29.
+* Previously, a variable named `ERROR` was used. This caused issues building
+  on Windows. Reported by Gisle Vanem. GitHub #36.
 
 2.3.1 (2017-01-05)
 ------------------
