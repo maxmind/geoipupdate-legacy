@@ -12,7 +12,7 @@ geoipupdate_SOURCES = \
 					  types.h \
 					  functions.c functions.h
 geoipupdate_LDFLAGS =
-geoipupdate_LDADD = -L${OPENSSLLIB} -lcrypto
+geoipupdate_LDADD = -lcrypto
 
 EXTRA_DIST = geoipupdate-pureperl.pl
 
