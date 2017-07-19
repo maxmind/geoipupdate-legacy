@@ -1,6 +1,13 @@
 #include "functions.h"
 #include "geoipupdate.h"
+#ifdef USE_OPENSSL_MD5
+#include <openssl/md5.h>
+typedef MD5_CTX	MD5_CONTEXT;
+#define md5_init	MD5_Init
+#define md5_write	MD5_Update
+#else
 #include "md5.h"
+#endif
 
 #include <ctype.h>
 #include <errno.h>
@@ -470,8 +477,12 @@ static int md5hex(const char *fname, char *hex_digest)
     while ((len = fread(buffer, 1, bsize, fh)) > 0) {
         md5_write(&context, buffer, len);
     }
+#ifdef USE_OPENSSL_MD5
+    MD5_Final(digest, &context);
+#else
     md5_final(&context);
     memcpy(digest, context.buf, 16);
+#endif
     exit_if(-1 == fclose(fh), "Error closing stream: %s", strerror(errno));
     for (int i = 0; i < 16; i++) {
         snprintf(&hex_digest[2 * i], 3, "%02x", digest[i]);
@@ -682,8 +693,12 @@ static void md5hex_license_ipaddr(geoipupdate_s * gu, const char *client_ipaddr,
     md5_write(&context, (unsigned char *)gu->license.license_key,
               strlen(gu->license.license_key));
     md5_write(&context, (unsigned char *)client_ipaddr, strlen(client_ipaddr));
+#ifdef USE_OPENSSL_MD5
+    MD5_Final(digest, &context);
+#else
     md5_final(&context);
     memcpy(digest, context.buf, 16);
+#endif
     for (int i = 0; i < 16; i++) {
         snprintf(&new_digest_str[2 * i], 3, "%02x", digest[i]);
     }
