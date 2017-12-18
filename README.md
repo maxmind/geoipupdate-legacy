@@ -40,7 +40,7 @@ installed such as `--prefix`, etc. See `./configure --help` for details.
 
 On Debain/Ubuntu a few options need to be passed:
 
-    $ ./configure --prefix=/usr --sysconfdir=/etc --sharedstatedir=/usr/share --localstatedir=/var --mandir=/usr/share/man
+    $ ./configure --prefix=/usr --bindir=/usr/sbin --sysconfdir=/etc --sharedstatedir=/usr/share --localstatedir=/var --mandir=/usr/share/man
     
 On Centos 7 or RHEL 7 run:
 
