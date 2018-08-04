@@ -38,7 +38,6 @@ typedef struct {
     size_t size;
 } in_mem_s;
 
-static void xasprintf(char **, const char *, ...);
 static void *xrealloc(void *, size_t);
 static void usage(void);
 static int parse_opts(geoipupdate_s *, int, char *const[]);
@@ -77,7 +76,7 @@ void exit_unless(int expr, const char *fmt, ...) {
     exit(1);
 }
 
-static void xasprintf(char **ptr, const char *fmt, ...) {
+void xasprintf(char **ptr, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     int rc = vasprintf(ptr, fmt, ap);

@@ -48,6 +48,7 @@ void edition_delete(edition_s *p);
 void exit_unless(int expr, const char *fmt, ...);
 void say_if(int expr, const char *fmt, ...);
 void *xcalloc(size_t, size_t);
+void xasprintf(char **, const char *, ...);
 
 #define NO_ACCOUNT_ID (-1)
 #define GEOIP_USERAGENT "geoipupdate/" VERSION
