@@ -2,18 +2,23 @@
 #include "functions.h"
 #include "md5.h"
 
+#ifdef _MSC_VER
+  #include <sys/stat.h>
+  #include <sys/utime.h>
+#else
+  #include <unistd.h>
+  #include <utime.h>
+  #include <getopt.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <getopt.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <utime.h>
 #include <zlib.h>
 
 #define ZERO_MD5 ("00000000000000000000000000000000")
@@ -29,14 +34,15 @@ typedef struct {
     size_t size;
 } in_mem_s;
 
-static void xasprintf(char **, const char *, ...);
+#ifndef _WIN32
+static int acquire_run_lock(geoipupdate_s const *const);
+#endif
 static void *xrealloc(void *, size_t);
 static void usage(void);
 static int parse_opts(geoipupdate_s *, int, char *const[]);
 static ssize_t my_getline(char **, size_t *, FILE *);
 static int parse_license_file(geoipupdate_s *);
 static char *join_path(char const *const, char const *const);
-static int acquire_run_lock(geoipupdate_s const *const);
 static int md5hex(const char *, char *);
 static void common_req(CURL *, geoipupdate_s *);
 static size_t get_expected_file_md5(char *, size_t, size_t, void *);
@@ -68,7 +74,7 @@ void exit_unless(int expr, const char *fmt, ...) {
     exit(1);
 }
 
-static void xasprintf(char **ptr, const char *fmt, ...) {
+void xasprintf(char **ptr, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     int rc = vasprintf(ptr, fmt, ap);
@@ -167,6 +173,7 @@ int main(int argc, char *const argv[]) {
     int err = GU_ERROR;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     geoipupdate_s *gu = geoipupdate_s_new();
+
     if (gu) {
         parse_opts(gu, argc, argv);
         if (parse_license_file(gu)) {
@@ -187,11 +194,13 @@ int main(int argc, char *const argv[]) {
                         gu->database_dir,
                         strerror(errno));
 
+#if !defined(_WIN32)
             if (acquire_run_lock(gu) != 0) {
                 geoipupdate_s_delete(gu);
                 curl_global_cleanup();
                 return GU_ERROR;
             }
+#endif
 
             err = (gu->license.account_id == NO_ACCOUNT_ID)
                       ? update_country_database(gu)
@@ -383,6 +392,12 @@ static char *join_path(char const *const dir, char const *const file) {
     return path;
 }
 
+#if defined(_WIN32)
+//
+// Use a Global Mutex (or '_sopen()') for this some day.
+//
+#else
+
 // Acquire a lock to ensure this is the only running geoipupdate instance. This
 // is to avoid race conditions where multiple geoipupdate instances run at
 // once, leading to failures.
@@ -454,10 +469,11 @@ static int acquire_run_lock(geoipupdate_s const *const gu) {
     close(fd);
     return 1;
 }
+#endif  /* _WIN32 */
 
 static int md5hex(const char *fname, char *hex_digest) {
-    int bsize = 1024;
-    unsigned char buffer[bsize], digest[16];
+    #define BSIZE 1024
+    unsigned char buffer[BSIZE], digest[16];
 
     size_t len;
     MD5_CONTEXT context;
@@ -476,7 +492,7 @@ static int md5hex(const char *fname, char *hex_digest) {
     exit_unless(S_ISREG(st.st_mode), "%s is not a file\n", fname);
 
     md5_init(&context);
-    while ((len = fread(buffer, 1, bsize, fh)) > 0) {
+    while ((len = fread(buffer, 1, BSIZE, fh)) > 0) {
         md5_write(&context, buffer, len);
     }
     exit_if(ferror(fh), "Unable to read %s: %s\n", fname, strerror(errno));
@@ -542,6 +558,30 @@ static size_t get_expected_file_md5(char *buffer,
     return size * nitems;
 }
 
+static FILE *last_f;
+
+static size_t fopen_callback(char *ptr,
+                             size_t size,
+                             size_t num,
+                             void *userdata)
+{
+  const char *fname = (const char*)userdata;
+  size_t rc;
+
+  if (!last_f)
+     last_f = fopen(fname, "wb");
+
+  if (!last_f) {
+     fprintf(stderr, "Can't open %s: %s\n", fname, strerror(errno));
+     return -1;
+  }
+  rc = fwrite (ptr, num, size, last_f);
+  if (rc == size)
+     rc = num * size;
+//printf ("fname: %s, size: %d, num: %d, rc: %d\n", fname, size, num, rc);
+  return (rc);
+}
+
 // Make an HTTP request and download the response body to a file.
 //
 // If the HTTP status is not 2xx, we have a error message in the body rather
@@ -550,16 +590,11 @@ static size_t get_expected_file_md5(char *buffer,
 // TODO(wstorey@maxmind.com): Return boolean/int whether we succeeded rather
 // than exiting. Beyond being cleaner and easier to test, it will allow us to
 // clean up after ourselves better.
+
 static void download_to_file(geoipupdate_s *gu,
                              const char *url,
                              const char *fname,
                              char *expected_file_md5) {
-    FILE *f = fopen(fname, "wb");
-    if (f == NULL) {
-        fprintf(stderr, "Can't open %s: %s\n", fname, strerror(errno));
-        exit(1);
-    }
-
     say_if(gu->verbose, "url: %s\n", url);
     CURL *curl = gu->curl;
 
@@ -567,8 +602,8 @@ static void download_to_file(geoipupdate_s *gu,
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, get_expected_file_md5);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, expected_file_md5);
 
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)f);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fopen_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fname);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     common_req(curl, gu);
@@ -582,11 +617,12 @@ static void download_to_file(geoipupdate_s *gu,
     long status = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
 
-    if (fclose(f) == -1) {
+    if (fclose(last_f) == -1) {
         fprintf(stderr, "Error closing file: %s: %s\n", fname, strerror(errno));
         unlink(fname);
         exit(1);
     }
+    last_f = NULL;
 
     if (status < 200 || status >= 300) {
         fprintf(stderr,
@@ -964,6 +1000,22 @@ static int gunzip_and_replace(geoipupdate_s const *const gu,
                 strerror(errno));
     }
 
+#if defined(_WIN32)
+    // Flush any buffers for this directory.
+    char dir [MAX_PATH];
+    HANDLE dir_hnd;
+
+    snprintf(dir, sizeof(dir), "%s\\", gu->database_dir);
+    dir_hnd = CreateFile(dir, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+    exit_if (dir_hnd == INVALID_HANDLE_VALUE,
+             "Error opening database directory: %d\n", GetLastError());
+
+    exit_if (FlushFileBuffers(dir_hnd) == FALSE,
+             "Error syncing database directory: %d\n", GetLastError());
+
+    CloseHandle(dir_hnd);  /* This handle gets closed if the above 'FlushFileBuffers(dir_fd)' fails */
+#else
     // fsync directory to ensure the rename is durable
     int dirfd = open(gu->database_dir, O_DIRECTORY);
     exit_if(
@@ -974,6 +1026,8 @@ static int gunzip_and_replace(geoipupdate_s const *const gu,
     exit_if(-1 == close(dirfd),
             "Error closing database directory: %s\n",
             strerror(errno));
+#endif
+
     exit_if(-1 == unlink(gzipfile),
             "Error unlinking %s: %s\n",
             gzipfile,

@@ -8,15 +8,20 @@ geoipupdate_s *geoipupdate_s_new(void) {
     size_t size = sizeof(geoipupdate_s);
     geoipupdate_s *gu = xcalloc(1, size);
 
-    gu->license_file = strdup(SYSCONFDIR "/GeoIP.conf");
-    exit_if(NULL == gu->license_file,
-            "Unable to allocate memory for license file path: %s\n",
-            strerror(errno));
+#ifdef _WIN32
+    const char *env = getenv("GEOIP_ROOT");
 
-    gu->database_dir = strdup(DATADIR);
-    exit_if(NULL == gu->database_dir,
-            "Unable to allocate memory for database directory path: %s\n",
-            strerror(errno));
+    exit_if(env == NULL,
+            "%%GEOIP_ROOT%% not set.\7\n"
+            "Set it to the root-directory of where \"GeoIP.conf\" and \"data/GeoIP*.dat\" files are.\n");
+
+    xasprintf (&gu->license_file, "%s/GeoIP.conf", env);
+    xasprintf (&gu->database_dir, "%s/data", env);
+
+#else
+    xasprintf (&gu->license_file, SYSCONFDIR "/GeoIP.conf");
+    xasprintf (&gu->database_dir, DATADIR);
+#endif
 
     gu->proto = strdup("https");
     exit_if(NULL == gu->proto,

@@ -54,4 +54,33 @@ void *xcalloc(size_t, size_t);
 
 #define exit_if(expr, ...) exit_unless(!(expr), ##__VA_ARGS__)
 
+void xasprintf(char **, const char *, ...);
+
+#ifdef _WIN32
+  #include <stdarg.h>
+  #include <io.h>
+
+  #ifndef __MINGW32__
+    extern char *optarg;
+    extern int   opterr;
+    extern int   optopt;
+    extern int   getopt (int argc, char *const *argv, const char *opt_string);
+  #endif
+
+  extern int   vasprintf (char **str_p, const char *format, va_list args);
+  extern char *strtok_r (char *ptr, const char *sep, char **end);
+
+  #ifndef S_ISREG
+  #define S_ISREG(m)  (((m) & _S_IFMT) == _S_IFREG)
+  #endif
+
+  #ifndef S_ISDIR
+  #define S_ISDIR(m)  (((m) & _S_IFMT) == _S_IFDIR)
+  #endif
+
+  #ifndef W_OK
+  #define W_OK 2
+  #endif
+#endif
+
 #endif

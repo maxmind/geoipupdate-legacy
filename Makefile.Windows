@@ -1,0 +1,135 @@
+#
+# GNU Makefile for GeoIP-Update (MinGW + MSVC).
+# By G. Vanem <gvanem@yahoo.no> 2015.
+#
+
+#
+# Change paths to suite:
+#
+MINGW_ROOT   = $(realpath $(MINGW32))
+LIBCURL_ROOT = $(MINGW_ROOT)/src/inet/curl
+ZLIB_ROOT    = $(MINGW_ROOT)/src/Compression/zlib-1.2.8
+
+THIS_FILE = Makefile.Windows
+
+USAGE = Usage: $(MAKE) -f $(THIS_FILE) CC=[gcc|cl] [all | clean]
+
+CONF_DIR = %GEOIP_ROOT%
+VPATH    = bin
+VERSION := $(shell grep --max-count=1 "AC_INIT" configure.ac | cut -d'[' -f3 | sed -e 's/],//')
+MAN_ROOT ?= $(realpath $(MINGW32))/share/man
+
+ifeq ($(CC),gcc)
+  INSTALL_ROOT = $(realpath $(MINGW32))
+  CFLAGS       = -m32 -Wall -O2 -fomit-frame-pointer -std=gnu99 -ggdb
+  LDFLAGS      = -m32 -s
+  OBJ_DIR      = MinGW_obj
+  O            = o
+
+else ifeq ($(CC),cl)
+  INSTALL_ROOT = $(realpath $(VCINSTALLDIR))
+  CFLAGS       = -nologo -MD -W3 -Zi -Ot -DWIN32 -D_CRT_SECURE_NO_WARNINGS \
+                 -D_CRT_NONSTDC_NO_WARNINGS -DBUILD_WINDOWS -Drestrict= -Dssize_t=int \
+                 -Dstrcasecmp=_stricmp -Dstrncasecmp=_strnicmp
+  LDFLAGS      = -nologo -debug:full -incremental:no
+  OBJ_DIR      = MSVC_obj
+  O            = obj
+
+else
+  $(error $(USAGE))
+endif
+
+default: all
+
+check_geoip_root:
+ifeq ($(GEOIP_ROOT),)
+  $(error %GEOIP_ROOT% needs to be set to root-dir of GeoIP tree.)
+endif
+ifeq ($(wildcard $(GEOIP_ROOT)/data/GeoIP*.dat),)
+  $(error %GEOIP_ROOT%/data contains no GeoIP*.dat files.)
+endif
+
+CFLAGS += -I./bin -I$(LIBCURL_ROOT)/include -I$(ZLIB_ROOT) \
+          -D_WIN32_WINNT=0x501 -DPACKAGE_STRING=\"geoip-update\" \
+          -DVERSION=\"$(VERSION)\" -DWIN32_LEAN_AND_MEAN -DHAVE_FGETS
+
+ifeq ($(CC),gcc)
+  CFLAGS += -DHAVE_INTTYPES_H
+  EX_LIBS = $(LIBCURL_ROOT)/lib/libcurl.dll.a $(ZLIB_ROOT)/lib/x86/libz.a
+else
+  CFLAGS += -DSSIZE_MAX=2147483647
+  EX_LIBS = $(LIBCURL_ROOT)/lib/libcurl_imp.lib $(ZLIB_ROOT)/lib/x86/zlib.lib
+endif
+
+SOURCES = $(addprefix bin/, \
+            edition_s.c     \
+            functions.c     \
+            geoipupdate.c   \
+            geoipupdate_s.c \
+            md5.c           \
+            win32.c)
+
+OBJECTS = $(addprefix $(OBJ_DIR)/, \
+            $(notdir $(SOURCES:.c=.$(O))))
+
+TARGETS = geoipupdate.exe man/geoipupdate.1 man/GeoIP.conf.5
+
+all: check_geoip_root intro $(OBJ_DIR) $(TARGETS)
+	@echo 'Do a "make -f Makefile.MingW install" at own risk.'
+
+intro:
+	@echo 'Building GeoIP-update ver. "$(VERSION)", $$(CC)=$(CC).'
+
+$(OBJ_DIR):
+	- mkdir $@
+
+$(OBJ_DIR)/%.o: %.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+	@echo
+
+$(OBJ_DIR)/%.obj: %.c
+	$(CC) $(CFLAGS) -Fo./$@ -c $<
+	@echo
+
+ifeq ($(CC),gcc)
+geoipupdate.exe: $(OBJECTS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(EX_LIBS)
+	@echo
+
+else
+geoipupdate.exe: $(OBJECTS)
+	link $(LDFLAGS) -out:$@ $^ $(EX_LIBS)
+	rm -f $(@:.exe=.exp) $(@:.exe=.lib)
+	@echo
+endif
+
+install: $(TARGETS)
+	cp --update geoipupdate.exe   $(INSTALL_ROOT)/bin
+	cp --update man/geoipupdate.1 $(MAN_ROOT)/man1
+	cp --update man/GeoIP.conf.5  $(MAN_ROOT)/man5
+
+MAN_REPLACE = -e 's|CONF_DIR/|%GEOIP_ROOT%/|g' -e 's|DATADIR|%GEOIP_ROOT%/data|g'
+
+man/geoipupdate.1: man/geoipupdate.1.in
+	sed $(MAN_REPLACE) < $^ > $@
+
+man/GeoIP.conf.5: man/GeoIP.conf.5.in
+	sed $(MAN_REPLACE) < $^ > $@
+
+clean:
+	rm -f vc1*.pdb $(OBJ_DIR)/*.{o,obj}
+	@echo
+
+UNIQUE_TARGETS = $(sort $(TARGETS) $(TARGETS:.exe=.map) $(TARGETS:.exe=.pdb))
+
+vclean realclean: clean
+	rm -f $(UNIQUE_TARGETS) .depend.Windows
+	- rmdir $(OBJ_DIR)
+
+DEP_REPLACE = sed -e 's/\(.*\)\.o: /\n$$(OBJ_DIR)\/\1.$$(O): /'
+DEP_CFLAGS  = -MM $(filter -D% -I%, $(CFLAGS))
+
+depend: check_geoip_root
+	gcc $(DEP_CFLAGS) $(SOURCES) | $(DEP_REPLACE) > .depend.Windows
+
+-include .depend.Windows
