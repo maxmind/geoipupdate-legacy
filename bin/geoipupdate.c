@@ -34,13 +34,15 @@ typedef struct {
     size_t size;
 } in_mem_s;
 
+#ifndef _WIN32
+static int acquire_run_lock(geoipupdate_s const *const);
+#endif
 static void *xrealloc(void *, size_t);
 static void usage(void);
 static int parse_opts(geoipupdate_s *, int, char *const[]);
 static ssize_t my_getline(char **, size_t *, FILE *);
 static int parse_license_file(geoipupdate_s *);
 static char *join_path(char const *const, char const *const);
-static int acquire_run_lock(geoipupdate_s const *const);
 static int md5hex(const char *, char *);
 static void common_req(CURL *, geoipupdate_s *);
 static size_t get_expected_file_md5(char *, size_t, size_t, void *);
@@ -191,11 +193,13 @@ int main(int argc, char *const argv[]) {
                         gu->database_dir,
                         strerror(errno));
 
+#if !defined(_WIN32)
             if (acquire_run_lock(gu) != 0) {
                 geoipupdate_s_delete(gu);
                 curl_global_cleanup();
                 return GU_ERROR;
             }
+#endif
 
             err = (gu->license.account_id == NO_ACCOUNT_ID)
                       ? update_country_database(gu)
@@ -387,6 +391,12 @@ static char *join_path(char const *const dir, char const *const file) {
     return path;
 }
 
+#if defined(_WIN32)
+//
+// Use a Global Mutex (or '_sopen()') for this some day.
+//
+#else
+
 // Acquire a lock to ensure this is the only running geoipupdate instance. This
 // is to avoid race conditions where multiple geoipupdate instances run at
 // once, leading to failures.
@@ -458,6 +468,7 @@ static int acquire_run_lock(geoipupdate_s const *const gu) {
     close(fd);
     return 1;
 }
+#endif  /* _WIN32 */
 
 static int md5hex(const char *fname, char *hex_digest) {
     int bsize = 1024;
