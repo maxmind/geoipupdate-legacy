@@ -558,6 +558,30 @@ static size_t get_expected_file_md5(char *buffer,
     return size * nitems;
 }
 
+static FILE *last_f;
+
+static size_t fopen_callback(char *ptr,
+                             size_t size,
+                             size_t num,
+                             void *userdata)
+{
+  const char *fname = (const char*)userdata;
+  size_t rc;
+
+  if (!last_f)
+     last_f = fopen(fname, "wb");
+
+  if (!last_f) {
+     fprintf(stderr, "Can't open %s: %s\n", fname, strerror(errno));
+     return -1;
+  }
+  rc = fwrite (ptr, num, size, last_f);
+  if (rc == size)
+     rc = num * size;
+//printf ("fname: %s, size: %d, num: %d, rc: %d\n", fname, size, num, rc);
+  return (rc);
+}
+
 // Make an HTTP request and download the response body to a file.
 //
 // If the HTTP status is not 2xx, we have a error message in the body rather
@@ -566,16 +590,11 @@ static size_t get_expected_file_md5(char *buffer,
 // TODO(wstorey@maxmind.com): Return boolean/int whether we succeeded rather
 // than exiting. Beyond being cleaner and easier to test, it will allow us to
 // clean up after ourselves better.
+
 static void download_to_file(geoipupdate_s *gu,
                              const char *url,
                              const char *fname,
                              char *expected_file_md5) {
-    FILE *f = fopen(fname, "wb");
-    if (f == NULL) {
-        fprintf(stderr, "Can't open %s: %s\n", fname, strerror(errno));
-        exit(1);
-    }
-
     say_if(gu->verbose, "url: %s\n", url);
     CURL *curl = gu->curl;
 
@@ -583,8 +602,8 @@ static void download_to_file(geoipupdate_s *gu,
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, get_expected_file_md5);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, expected_file_md5);
 
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)f);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fopen_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fname);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     common_req(curl, gu);
@@ -598,11 +617,12 @@ static void download_to_file(geoipupdate_s *gu,
     long status = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
 
-    if (fclose(f) == -1) {
+    if (fclose(last_f) == -1) {
         fprintf(stderr, "Error closing file: %s: %s\n", fname, strerror(errno));
         unlink(fname);
         exit(1);
     }
+    last_f = NULL;
 
     if (status < 200 || status >= 300) {
         fprintf(stderr,
