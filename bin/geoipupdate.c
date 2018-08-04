@@ -980,6 +980,22 @@ static int gunzip_and_replace(geoipupdate_s const *const gu,
                 strerror(errno));
     }
 
+#if defined(_WIN32)
+    // Flush any buffers for this directory.
+    char dir [MAX_PATH];
+    HANDLE dir_hnd;
+
+    snprintf(dir, sizeof(dir), "%s\\", gu->database_dir);
+    dir_hnd = CreateFile(dir, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+    exit_if (dir_hnd == INVALID_HANDLE_VALUE,
+             "Error opening database directory: %d\n", GetLastError());
+
+    exit_if (FlushFileBuffers(dir_hnd) == FALSE,
+             "Error syncing database directory: %d\n", GetLastError());
+
+    CloseHandle(dir_hnd);  /* This handle gets closed if the above 'FlushFileBuffers(dir_fd)' fails */
+#else
     // fsync directory to ensure the rename is durable
     int dirfd = open(gu->database_dir, O_DIRECTORY);
     exit_if(
@@ -990,6 +1006,8 @@ static int gunzip_and_replace(geoipupdate_s const *const gu,
     exit_if(-1 == close(dirfd),
             "Error closing database directory: %s\n",
             strerror(errno));
+#endif
+
     exit_if(-1 == unlink(gzipfile),
             "Error unlinking %s: %s\n",
             gzipfile,
