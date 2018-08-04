@@ -11,7 +11,12 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
+
+#ifdef _MSC_VER
+  #include <io.h>
+#else
+  #include <unistd.h>
+#endif
 
 static ssize_t read_file(char const *const, void *const, size_t const);
 
@@ -125,6 +130,7 @@ read_file(char const *const file, void *const buf, size_t const bufsz) {
         fprintf(stderr, "read_file: %s\n", strerror(EINVAL));
         return -1;
     }
+    const char *buf_b = (const char*)buf;
 
     // Note previously we used fopen() and getline() to read, but getline() is
     // not appropriate when we have a binary file such as gzip. It reads until
@@ -159,7 +165,7 @@ read_file(char const *const file, void *const buf, size_t const bufsz) {
         }
 
         ssize_t const read_bytes =
-            read(fd, buf + total_read_bytes, bytes_left_to_read);
+            read(fd, buf_b + total_read_bytes, bytes_left_to_read);
         if (read_bytes < 0) {
             if (errno == EINTR) {
                 retries_remaining--;
