@@ -173,6 +173,7 @@ int main(int argc, char *const argv[]) {
     int err = GU_ERROR;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     geoipupdate_s *gu = geoipupdate_s_new();
+
     if (gu) {
         parse_opts(gu, argc, argv);
         if (parse_license_file(gu)) {
@@ -471,8 +472,8 @@ static int acquire_run_lock(geoipupdate_s const *const gu) {
 #endif  /* _WIN32 */
 
 static int md5hex(const char *fname, char *hex_digest) {
-    int bsize = 1024;
-    unsigned char buffer[bsize], digest[16];
+    #define BSIZE 1024
+    unsigned char buffer[BSIZE], digest[16];
 
     size_t len;
     MD5_CONTEXT context;
@@ -491,7 +492,7 @@ static int md5hex(const char *fname, char *hex_digest) {
     exit_unless(S_ISREG(st.st_mode), "%s is not a file\n", fname);
 
     md5_init(&context);
-    while ((len = fread(buffer, 1, bsize, fh)) > 0) {
+    while ((len = fread(buffer, 1, BSIZE, fh)) > 0) {
         md5_write(&context, buffer, len);
     }
     exit_if(ferror(fh), "Unable to read %s: %s\n", fname, strerror(errno));
