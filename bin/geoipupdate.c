@@ -2,6 +2,15 @@
 #include "functions.h"
 #include "md5.h"
 
+#ifdef _MSC_VER
+  #include <sys/stat.h>
+  #include <sys/utime.h>
+#else
+  #include <unistd.h>
+  #include <utime.h>
+  #include <getopt.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
