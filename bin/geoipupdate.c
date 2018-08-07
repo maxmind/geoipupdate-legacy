@@ -582,19 +582,21 @@ static size_t fopen_callback(char *ptr,
   return (rc);
 }
 
-// Make an HTTP request and download the response body to a file.
-//
-// If the HTTP status is not 2xx, we have a error message in the body rather
-// than a file. Write it to stderr and exit.
-//
-// TODO(wstorey@maxmind.com): Return boolean/int whether we succeeded rather
-// than exiting. Beyond being cleaner and easier to test, it will allow us to
-// clean up after ourselves better.
-
-static void download_to_file(geoipupdate_s *gu,
-                             const char *url,
-                             const char *fname,
-                             char *expected_file_md5) {
+// If the HTTP status is 200, we have a file. If it is 304, the file has
+// not changed and we display an error message. If it is 401, there was
+// an authentication issue and we display an error message. If it is
+// any other status code, we assume it is an error and write the body
+// to stderr.
+static int download_to_file(geoipupdate_s *gu,
+                            const char *url,
+                            const char *fname,
+                            char *expected_file_md5) {
+    FILE *f = fopen(fname, "wb");
+    if (f == NULL) {
+        fprintf(stderr, "Can't open %s: %s\n", fname, strerror(errno));
+        exit(1);
+    }
+  
     say_if(gu->verbose, "url: %s\n", url);
     CURL *curl = gu->curl;
 
