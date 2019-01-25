@@ -1,6 +1,6 @@
 # GeoIP Update
 
-## Deprecation notice
+## Deprecation Notice
 
 This is the repository for the deprecated C version of geoipupdate. Please
 visit the repository for the new version
