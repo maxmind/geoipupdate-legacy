@@ -1,5 +1,11 @@
 # GeoIP Update
 
+## Deprecation notice
+
+This is the repository for the deprecated C version of geoipupdate. Please
+visit the repository for the new version
+[here](https://github.com/maxmind/geoipupdate).
+
 ## Description
 
 The GeoIP Update program performs automatic updates of GeoIP2 and GeoIP Legacy
