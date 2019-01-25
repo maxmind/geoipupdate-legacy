@@ -2,9 +2,9 @@
 
 ## Deprecation Notice
 
-This is the repository for the deprecated C version of geoipupdate. Please
-visit the repository for the new version
-[here](https://github.com/maxmind/geoipupdate).
+This is the repository for the deprecated C version of geoipupdate. For the
+new version as well as to report issues related to C version, please visit
+the [new repository](https://github.com/maxmind/geoipupdate).
 
 ## Description
 
