@@ -41,18 +41,50 @@ dependencies by running:
     $ sudo yum groupinstall 'Development Tools'
     $ sudo yum install libcurl-devel zlib-devel
 
-Once you have the necessary dependencies, run the following commands:
+Then, configure the build build. The `configure` script takes the standard options to set where files are
+installed such as `--prefix`, etc. See `./configure --help` for details.
+
+On Debain/Ubuntu a few options need to be passed:
+
+    $ ./configure --prefix=/usr --bindir=/usr/sbin --sysconfdir=/etc --sharedstatedir=/usr/share --localstatedir=/var --mandir=/usr/share/man
+    
+On Centos 7 or RHEL 7 run:
 
     $ ./configure
-    $ make
-    $ sudo make install
 
-The `configure` script takes the standard options to set where files are
-installed such as `--prefix`, etc. See `./configure --help` for details.
+To build the program, run:
+
+    $ make
+    
+To install the freshly-built program as a package, you can use `checkinstall`.
+
+To install `checkinstall` on Debain/Ubuntu, run:
+
+    $ sudo apt-get install checkinstall
+
+To install `checkinstall` on Centos/RHEL, run:
+
+    $ sudo yum install checkinstall
+    
+To build and install the `geoipupdate` package, run:
+
+    $ sudo checkinstall -y --deldoc=yes
+    
+Or, if you would rather not use `checkinstall`, run:
+
+    $ sudo make install
 
 ## Installing From GitHub
 
-To install from Git, you will need automake, autoconf, and libtool installed.
+To install from Git, you will need `autoconf`,`automake`, and `libtool` installed.
+
+On Debain/Ubuntu, run:
+
+    $ sudo apt-get install git autoconf automake libtool
+
+On Centos/RHEL:
+
+    $ sudo yum install git autoconf automake libtool
 
 Our public git repository is hosted on GitHub at
 https://github.com/maxmind/geoipupdate-legacy
